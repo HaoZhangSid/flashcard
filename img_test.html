@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Image Background Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* Image Background Container */
+        .bg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #bgImage {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            /* Same Scale/Translate logic as video for consistency */
+            /* transform: scale(1.05) translate(2%, 2%); */
+            transform-origin: center center;
+            transition: opacity 0.3s ease;
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            user-select: none;
+        }
+
+        .card-content {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .finnish-word {
+            font-size: 48px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .pronunciation-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 400;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 16px;
+            border-radius: 30px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .pronunciation-row:active {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .speaker-icon {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .translation {
+            font-size: 28px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .example-sentence {
+            font-size: 18px;
+            font-weight: 600;
+            font-style: normal;
+            opacity: 0.9;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+
+        .swipe-hint {
+            position: absolute;
+            bottom: 50px;
+            font-size: 14px;
+            opacity: 0.6;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translateY(-5px);
+            }
+
+            100% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        /* File Input Control */
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .custom-file-upload {
+            display: inline-block;
+            padding: 8px 16px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .custom-file-upload:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-container">
+        <!-- Default image placeholder or empty -->
+        <img id="bgImage" src="" alt="Background Preview" style="opacity: 0;">
+    </div>
+
+    <!-- UI Overlay (Same as main app) -->
+    <div class="overlay" id="touchArea">
+        <div class="card-content" id="cardContent">
+            <h1 class="finnish-word" id="word">Ladataan...</h1>
+
+            <div class="pronunciation-row" onclick="playAudio(event)">
+                <span id="pronunciation">-</span>
+                <svg class="speaker-icon" viewBox="0 0 24 24">
+                    <path
+                        d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                </svg>
+            </div>
+
+            <p class="translation" id="translation">...</p>
+            <p class="example-sentence" id="sentence">...</p>
+        </div>
+
+        <div class="swipe-hint">↑ 上滑 / 下滑 ↓ 切换单词</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <label class="custom-file-upload">
+            <input type="file" id="imgInput" accept="image/*">
+            📂 选择背景图片
+        </label>
+    </div>
+
+    <script>
+        const vocabulary = [
+            { word: "Tuli", translation: "火", pronunciation: "tu-li", example: "Tuli polttaa puuta." },
+            { word: "Kissa", translation: "猫", pronunciation: "kis-sa", example: "Musta kissa juoksi tien yli." },
+            { word: "Yö", translation: "夜晚", pronunciation: "yö", example: "Yö oli pimeä ja myrskyinen." },
+            { word: "Kiitos", translation: "谢谢", pronunciation: "kii-tos", example: "Kiitos avustasi." },
+            { word: "Suomi", translation: "芬兰", pronunciation: "suo-mi", example: "Asun Suomessa." },
+            // ... (Full list omitted for brevity, but logically present) ...
+            { word: "Rakastaa", translation: "爱", pronunciation: "ra-kas-taa", example: "Minä rakastan sinua." },
+            { word: "Talo", translation: "房子", pronunciation: "ta-lo", example: "Talo on punainen." },
+            { word: "Aurinko", translation: "太阳", pronunciation: "au-rin-ko", example: "Aurinko paistaa." },
+            { word: "Vesi", translation: "水", pronunciation: "ve-si", example: "Vesi on kirkasta." },
+            { word: "Metsä", translation: "森林", pronunciation: "met-sä", example: "Metsässä on paljon puita." },
+        ];
+
+        let currentIndex = 0;
+        const cardContent = document.getElementById('cardContent');
+
+        function renderCard(index) {
+            const data = vocabulary[index % vocabulary.length]; // Safeguard
+            cardContent.classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('word').textContent = data.word;
+                document.getElementById('pronunciation').textContent = data.pronunciation;
+                document.getElementById('translation').textContent = data.translation;
+                document.getElementById('sentence').textContent = data.example;
+                cardContent.classList.remove('fade-out');
+            }, 250);
+        }
+        renderCard(currentIndex);
+
+        // --- Swipe Logic ---
+        let touchStartY = 0;
+        let touchEndY = 0;
+        const SWIPE_THRESHOLD = 40;
+        const touchArea = document.getElementById('touchArea');
+
+        touchArea.addEventListener('touchstart', (e) => {
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        touchArea.addEventListener('touchend', (e) => {
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+
+        function handleSwipe() {
+            const deltaY = touchEndY - touchStartY;
+            const hint = document.querySelector('.swipe-hint');
+            if (hint && hint.style.opacity !== '0') {
+                hint.style.opacity = '0';
+                hint.style.transition = 'opacity 0.5s';
+                setTimeout(() => hint.remove(), 600);
+            }
+            if (Math.abs(deltaY) > SWIPE_THRESHOLD) {
+                if (deltaY < 0) nextWord();
+                else prevWord();
+            }
+        }
+
+        function nextWord() {
+            currentIndex = (currentIndex + 1) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        function prevWord() {
+            currentIndex = (currentIndex - 1 + vocabulary.length) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        // --- Image Picker Logic ---
+        const imgInput = document.getElementById('imgInput');
+        const bgImage = document.getElementById('bgImage');
+
+        imgInput.addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                bgImage.onload = () => {
+                    bgImage.style.opacity = '1';
+                }
+                bgImage.src = url;
+            }
+        });
+
+        // Optional: Play pronunciation (Client-side logic)
+        function playAudio(e) {
+            e.stopPropagation();
+            const word = vocabulary[currentIndex % vocabulary.length].word;
+            const icon = document.querySelector('.speaker-icon');
+            icon.style.transform = 'scale(1.2)';
+            setTimeout(() => icon.style.transform = 'scale(1)', 200);
+            const audioPath = `./mp3/${word.toLowerCase()}.mp3`;
+            const audio = new Audio(audioPath);
+            audio.play().catch(err => console.error("Audio play failed", err));
+        }
+    </script>
+</body>
+
+</html>

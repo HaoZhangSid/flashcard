@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Video Word Card</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            /* Scale up and shift to hide bottom-right watermark */
+            transform: scale(1.05) translate(2%, 2%);
+            transform-origin: center center;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            user-select: none;
+        }
+
+        .card-content {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .finnish-word {
+            font-size: 48px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .pronunciation-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 400;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 16px;
+            border-radius: 30px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .pronunciation-row:active {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .speaker-icon {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .translation {
+            font-size: 28px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .example-sentence {
+            font-size: 18px;
+            font-weight: 600;
+            font-style: normal;
+            opacity: 0.9;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+
+        .swipe-hint {
+            position: absolute;
+            bottom: 50px;
+            font-size: 14px;
+            opacity: 0.6;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translateY(-5px);
+            }
+
+            100% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        #play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 20;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        #play-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .play-icon {
+            width: 80px;
+            height: 80px;
+            border: 3px solid white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .play-icon svg {
+            width: 36px;
+            height: 36px;
+            fill: white;
+            margin-left: 6px;
+        }
+
+        .play-text {
+            font-size: 16px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="video-container">
+        <video id="video1" src="./3.mp4" muted playsinline webkit-playsinline preload="auto"></video>
+        <video id="video2" src="./3.mp4" muted playsinline webkit-playsinline preload="auto"
+            style="opacity: 0;"></video>
+    </div>
+
+    <div class="overlay" id="touchArea">
+        <div class="card-content" id="cardContent">
+            <h1 class="finnish-word" id="word">Ladataan...</h1>
+
+            <div class="pronunciation-row" onclick="playAudio(event)">
+                <span id="pronunciation">-</span>
+                <svg class="speaker-icon" viewBox="0 0 24 24">
+                    <path
+                        d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                </svg>
+            </div>
+
+            <p class="translation" id="translation">...</p>
+            <p class="example-sentence" id="sentence">...</p>
+        </div>
+
+        <div class="swipe-hint">↑ 上滑 / 下滑 ↓ 切换单词</div>
+    </div>
+
+    <div id="play-overlay">
+        <div class="play-icon">
+            <svg viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+            </svg>
+        </div>
+        <div class="play-text">点击开始学习</div>
+    </div>
+
+    <script>
+        const vocabulary = [
+            { word: "Tuli", translation: "火", pronunciation: "tu-li", example: "Tuli polttaa puuta." },
+            { word: "Kissa", translation: "猫", pronunciation: "kis-sa", example: "Musta kissa juoksi tien yli." },
+            { word: "Yö", translation: "夜晚", pronunciation: "yö", example: "Yö oli pimeä ja myrskyinen." },
+            { word: "Kiitos", translation: "谢谢", pronunciation: "kii-tos", example: "Kiitos avustasi." },
+            { word: "Suomi", translation: "芬兰", pronunciation: "suo-mi", example: "Asun Suomessa." },
+            { word: "Rakastaa", translation: "爱", pronunciation: "ra-kas-taa", example: "Minä rakastan sinua." },
+            { word: "Talo", translation: "房子", pronunciation: "ta-lo", example: "Talo on punainen." },
+            { word: "Aurinko", translation: "太阳", pronunciation: "au-rin-ko", example: "Aurinko paistaa." },
+            { word: "Vesi", translation: "水", pronunciation: "ve-si", example: "Vesi on kirkasta." },
+            { word: "Metsä", translation: "森林", pronunciation: "met-sä", example: "Metsässä on paljon puita." },
+            { word: "Lumi", translation: "雪", pronunciation: "lu-mi", example: "Lumi on valkoista." },
+            { word: "Järvi", translation: "湖", pronunciation: "jär-vi", example: "Suomi on tuhansien järvien maa." },
+            { word: "Kala", translation: "鱼", pronunciation: "ka-la", example: "Kala ui vedessä." },
+            { word: "Lintu", translation: "鸟", pronunciation: "lin-tu", example: "Lintu lentää taivaalla." },
+            { word: "Puu", translation: "树", pronunciation: "puu", example: "Tämä on vanha puu." },
+            { word: "Kukka", translation: "花", pronunciation: "kuk-ka", example: "Kukka on kaunis." },
+            { word: "Ystävä", translation: "朋友", pronunciation: "ys-tä-vä", example: "Hän on paras ystäväni." },
+            { word: "Onni", translation: "幸福", pronunciation: "on-ni", example: "Toivon sinulle onnea." },
+            { word: "Ruoka", translation: "食物", pronunciation: "ruo-ka", example: "Ruoka on valmista." },
+            { word: "Juoma", translation: "饮料", pronunciation: "juo-ma", example: "Tämä on kylmä juoma." },
+            { word: "Kirja", translation: "书", pronunciation: "kir-ja", example: "Luen hyvää kirjaa." },
+            { word: "Koulu", translation: "学校", pronunciation: "kou-lu", example: "Lapset menevät kouluun." },
+            { word: "Työ", translation: "工作", pronunciation: "työ", example: "Teen paljon työtä." },
+            { word: "Aamu", translation: "早晨", pronunciation: "aa-mu", example: "Hyvää huomenta!" },
+            { word: "Ilta", translation: "晚上", pronunciation: "il-ta", example: "Hyvää iltaa!" },
+            { word: "Kesä", translation: "夏天", pronunciation: "ke-sä", example: "Kesällä on lämmintä." },
+            { word: "Talvi", translation: "冬天", pronunciation: "tal-vi", example: "Talvella on kylmää." },
+            { word: "Perhe", translation: "家庭", pronunciation: "per-he", example: "Perhe on tärkein." },
+            { word: "Koira", translation: "狗", pronunciation: "koi-ra", example: "Koira haukkuu pihalla." },
+            { word: "Auto", translation: "汽车", pronunciation: "au-to", example: "Ajan autolla töihin." }
+        ];
+
+        let currentIndex = 0;
+        const cardContent = document.getElementById('cardContent');
+
+        function renderCard(index) {
+            const data = vocabulary[index];
+            cardContent.classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('word').textContent = data.word;
+                document.getElementById('pronunciation').textContent = data.pronunciation;
+                document.getElementById('translation').textContent = data.translation;
+                document.getElementById('sentence').textContent = data.example;
+                cardContent.classList.remove('fade-out');
+            }, 250);
+        }
+        renderCard(currentIndex);
+
+        let touchStartY = 0;
+        let touchEndY = 0;
+        const SWIPE_THRESHOLD = 40;
+        const touchArea = document.getElementById('touchArea');
+
+        touchArea.addEventListener('touchstart', (e) => {
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        touchArea.addEventListener('touchend', (e) => {
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+
+        function handleSwipe() {
+            const deltaY = touchEndY - touchStartY;
+            const hint = document.querySelector('.swipe-hint');
+            if (hint && hint.style.opacity !== '0') {
+                hint.style.opacity = '0';
+                hint.style.transition = 'opacity 0.5s';
+                setTimeout(() => hint.remove(), 600);
+            }
+            if (Math.abs(deltaY) > SWIPE_THRESHOLD) {
+                if (deltaY < 0) nextWord();
+                else prevWord();
+            }
+        }
+
+        function nextWord() {
+            currentIndex = (currentIndex + 1) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        function prevWord() {
+            currentIndex = (currentIndex - 1 + vocabulary.length) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowRight') nextWord();
+            if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') prevWord();
+        });
+
+        function playAudio(e) {
+            e.stopPropagation();
+            const word = vocabulary[currentIndex].word;
+            const icon = document.querySelector('.speaker-icon');
+            icon.style.transform = 'scale(1.2)';
+            setTimeout(() => icon.style.transform = 'scale(1)', 200);
+            const audioPath = `./mp3/${word.toLowerCase()}.mp3`;
+            const audio = new Audio(audioPath);
+            audio.play().catch(err => console.error("Pronunciation playback failed:", err));
+        }
+
+        // --- Web Audio API for Background Music ---
+        let audioCtx;
+        let sourceNode;
+        let audioBuffer;
+        let isAudioPlaying = false;
+
+        async function loadAudio(url) {
+            try {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                console.log("Background audio decoded");
+            } catch (e) {
+                console.error("Audio loading failed:", e);
+            }
+        }
+
+        function playSeamlessAudio() {
+            if (!audioBuffer || !audioCtx) return;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(e => console.warn("AudioContext resume failed:", e));
+            }
+            if (isAudioPlaying) return;
+            if (sourceNode) { try { sourceNode.stop(); } catch (e) { } }
+            sourceNode = audioCtx.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.loop = true;
+            sourceNode.connect(audioCtx.destination);
+            sourceNode.start(0);
+            isAudioPlaying = true;
+        }
+
+        function stopAudio() {
+            if (sourceNode) {
+                try { sourceNode.stop(); } catch (e) { }
+                sourceNode = null;
+            }
+            isAudioPlaying = false;
+        }
+
+        // --- Seamless Video Loop (Optimized) ---
+        const v1 = document.getElementById('video1');
+        const v2 = document.getElementById('video2');
+        const overlay = document.getElementById('play-overlay');
+        let activeVideo = v1;
+        let nextVideo = v2;
+        let isSwapping = false;
+        let loopRunning = false;
+
+        [v1, v2].forEach(v => {
+            v.muted = true;
+            v.removeAttribute('loop');
+        });
+
+        // Key optimization: Pre-buffer the next video to time 0 right after a switch
+        function prepareNextVideo() {
+            // Reset next video to start, so it's ready for instant switch
+            nextVideo.currentTime = 0;
+        }
+
+        const checkLoop = () => {
+            if (!activeVideo || isNaN(activeVideo.duration) || activeVideo.paused) {
+                requestAnimationFrame(checkLoop);
+                return;
+            }
+
+            const timeLeft = activeVideo.duration - activeVideo.currentTime;
+
+            // Switch earlier (0.1s before end) for tighter timing
+            // Also ensure nextVideo is at time 0 before switching
+            if (timeLeft < 0.1 && !isSwapping) {
+                isSwapping = true;
+
+                // Ensure next video is at start before showing it
+                nextVideo.currentTime = 0;
+
+                // Use requestAnimationFrame for frame-perfect switch
+                requestAnimationFrame(() => {
+                    // Instant opacity swap (no CSS transition)
+                    nextVideo.style.opacity = '1';
+                    activeVideo.style.opacity = '0';
+
+                    // Swap references
+                    const temp = activeVideo;
+                    activeVideo = nextVideo;
+                    nextVideo = temp;
+
+                    // Prepare next video for next cycle
+                    prepareNextVideo();
+
+                    isSwapping = false;
+                });
+            }
+            requestAnimationFrame(checkLoop);
+        };
+
+        function showOverlay() {
+            overlay.classList.remove('hidden');
+        }
+
+        function hideOverlay() {
+            overlay.classList.add('hidden');
+        }
+
+        const attemptStart = async () => {
+            try {
+                // Reset both videos to start
+                v1.currentTime = 0;
+                v2.currentTime = 0;
+
+                const promises = [v1.play(), v2.play()];
+                await Promise.all(promises);
+
+                v1.style.opacity = '1';
+                v2.style.opacity = '0';
+                activeVideo = v1;
+                nextVideo = v2;
+                isSwapping = false;
+
+                hideOverlay();
+
+                if (!loopRunning) {
+                    loopRunning = true;
+                    requestAnimationFrame(checkLoop);
+                }
+            } catch (videoErr) {
+                console.log("Video autoplay blocked:", videoErr);
+                showOverlay();
+                return;
+            }
+
+            try {
+                if (audioBuffer) playSeamlessAudio();
+            } catch (audioErr) {
+                console.log("Audio autoplay blocked:", audioErr);
+            }
+        };
+
+        function pauseAll() {
+            v1.pause();
+            v2.pause();
+            stopAudio();
+            loopRunning = false;
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                pauseAll();
+            } else {
+                showOverlay();
+            }
+        });
+
+        window.addEventListener('load', () => {
+            loadAudio('./1.mp3');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.pronunciation-row')) return;
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            attemptStart();
+        });
+
+        document.addEventListener("WeixinJSBridgeReady", () => attemptStart(), false);
+    </script>
+</body>
+
+</html>

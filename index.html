@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>芬兰语单词卡</title>
+
+    <!-- PWA Configuration -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #video-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scale(1.05) translate(2%, 2%);
+            transform-origin: center center;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            user-select: none;
+        }
+
+        .card-content {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .finnish-word {
+            font-size: 48px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .pronunciation-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 400;
+            opacity: 0.9;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 16px;
+            border-radius: 30px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .pronunciation-row:active {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .speaker-icon {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .translation {
+            font-size: 28px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .example-sentence {
+            font-size: 18px;
+            font-weight: 600;
+            font-style: normal;
+            opacity: 0.9;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+
+        .swipe-hint {
+            position: absolute;
+            bottom: 50px;
+            font-size: 14px;
+            opacity: 0.6;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translateY(-5px);
+            }
+
+            100% {
+                opacity: 0.4;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        #play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 20;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        #play-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .play-icon {
+            width: 80px;
+            height: 80px;
+            border: 3px solid white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .play-icon svg {
+            width: 36px;
+            height: 36px;
+            fill: white;
+            margin-left: 6px;
+        }
+
+        .play-text {
+            font-size: 16px;
+            opacity: 0.8;
+        }
+
+        /* ========== Audio Mixer Styles ========== */
+        .mixer-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            width: 40px;
+            height: 40px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .mixer-toggle:hover {
+            color: rgba(255, 255, 255, 0.8);
+            transform: scale(1.1);
+        }
+
+        .mixer-toggle.active {
+            color: rgba(100, 200, 255, 0.8);
+        }
+
+        .mixer-panel {
+            position: fixed;
+            bottom: 74px;
+            left: 20px;
+            z-index: 99;
+            width: 240px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: white;
+            font-size: 14px;
+            overflow: hidden;
+            transform: translateY(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s ease;
+        }
+
+        .mixer-panel.open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .mixer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+        }
+
+        .mixer-header span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mixer-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .mixer-close:hover {
+            color: white;
+        }
+
+        .mixer-tracks {
+            padding: 8px 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .mixer-track {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            transition: background 0.15s;
+        }
+
+        .mixer-track:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .mixer-track input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #4fc3f7;
+            cursor: pointer;
+        }
+
+        .mixer-track-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mixer-track input[type="range"] {
+            width: 70px;
+            height: 4px;
+            accent-color: #4fc3f7;
+            cursor: pointer;
+        }
+
+        .mixer-volume-icon {
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="video-container">
+        <canvas id="video-canvas"></canvas>
+    </div>
+
+    <div class="overlay" id="touchArea">
+        <div class="card-content" id="cardContent">
+            <h1 class="finnish-word" id="word">Ladataan...</h1>
+
+            <div class="pronunciation-row" onclick="playAudio(event)">
+                <span id="pronunciation">-</span>
+                <svg class="speaker-icon" viewBox="0 0 24 24">
+                    <path
+                        d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                </svg>
+            </div>
+
+            <p class="translation" id="translation">...</p>
+            <p class="example-sentence" id="sentence">...</p>
+        </div>
+
+        <div class="swipe-hint">↑ 上滑 / 下滑 ↓ 切换单词</div>
+    </div>
+
+    <div id="play-overlay">
+        <div class="play-icon">
+            <svg viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+            </svg>
+        </div>
+        <div class="play-text">点击开始学习</div>
+    </div>
+
+    <!-- Audio Mixer UI -->
+    <button class="mixer-toggle" id="mixerToggle" title="Audio Mixer">🎵</button>
+    <div class="mixer-panel" id="mixerPanel">
+        <div class="mixer-header">
+            <span>🎵 音轨混音器</span>
+            <button class="mixer-close" id="mixerClose">×</button>
+        </div>
+        <div class="mixer-tracks" id="mixerTracks">
+            <!-- Tracks will be dynamically generated -->
+        </div>
+    </div>
+
+    <!-- JSMpeg Library -->
+    <script src="./jsmpeg.min.js"></script>
+
+    <script>
+        // ==================== AUDIO TRACKS CONFIGURATION ====================
+        // Easy to add/remove tracks! Just modify this array.
+        const audioTracks = [
+            { id: 'ambient', name: '环境音', src: './1.mp3', volume: 0.5, enabled: true },
+            // Add more tracks here:
+            { id: 'music', name: '背景乐', src: './cat-purring.mp3', volume: 0.3, enabled: true },
+            // { id: 'rain', name: '雨声', src: './rain.mp3', volume: 0.4, enabled: false },
+        ];
+
+        // ==================== AUDIO MIXER CLASS ====================
+        class AudioMixer {
+            constructor(tracks) {
+                this.tracks = tracks;
+                this.audioCtx = null;
+                this.masterGain = null;
+                this.trackData = {}; // { id: { buffer, gainNode, sourceNode, enabled, volume } }
+                this.isInitialized = false;
+            }
+
+            async init() {
+                if (this.isInitialized) return;
+
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.audioCtx.createGain();
+                this.masterGain.connect(this.audioCtx.destination);
+
+                // Load all tracks
+                const loadPromises = this.tracks.map(track => this.loadTrack(track));
+                await Promise.all(loadPromises);
+
+                this.isInitialized = true;
+                console.log('AudioMixer initialized with', this.tracks.length, 'tracks');
+            }
+
+            async loadTrack(track) {
+                try {
+                    const response = await fetch(track.src);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+                    const gainNode = this.audioCtx.createGain();
+                    gainNode.gain.value = track.enabled ? track.volume : 0;
+                    gainNode.connect(this.masterGain);
+
+                    this.trackData[track.id] = {
+                        buffer,
+                        gainNode,
+                        sourceNode: null,
+                        enabled: track.enabled,
+                        volume: track.volume
+                    };
+
+                    console.log(`Track "${track.name}" loaded`);
+                } catch (e) {
+                    console.error(`Failed to load track "${track.name}":`, e);
+                }
+            }
+
+            resume() {
+                if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
+
+            playAll() {
+                this.resume();
+                for (const id in this.trackData) {
+                    const data = this.trackData[id];
+                    if (data.sourceNode) continue; // Already playing
+
+                    const source = this.audioCtx.createBufferSource();
+                    source.buffer = data.buffer;
+                    source.loop = true;
+                    source.connect(data.gainNode);
+                    source.start(0);
+                    data.sourceNode = source;
+                }
+            }
+
+            stopAll() {
+                for (const id in this.trackData) {
+                    const data = this.trackData[id];
+                    if (data.sourceNode) {
+                        try { data.sourceNode.stop(); } catch (e) { }
+                        data.sourceNode = null;
+                    }
+                }
+            }
+
+            setTrackEnabled(id, enabled) {
+                const data = this.trackData[id];
+                if (!data) return;
+
+                data.enabled = enabled;
+                data.gainNode.gain.setTargetAtTime(
+                    enabled ? data.volume : 0,
+                    this.audioCtx.currentTime,
+                    0.1
+                );
+            }
+
+            setTrackVolume(id, volume) {
+                const data = this.trackData[id];
+                if (!data) return;
+
+                data.volume = volume;
+                if (data.enabled) {
+                    data.gainNode.gain.setTargetAtTime(volume, this.audioCtx.currentTime, 0.1);
+                }
+            }
+
+            isPlaying() {
+                for (const id in this.trackData) {
+                    if (this.trackData[id].sourceNode) return true;
+                }
+                return false;
+            }
+        }
+
+        // Global mixer instance
+        const mixer = new AudioMixer(audioTracks);
+
+        // Pronunciation volume (0-1)
+        let pronunciationVolume = 0.8;
+
+        // ==================== MIXER UI ====================
+        const mixerToggle = document.getElementById('mixerToggle');
+        const mixerPanel = document.getElementById('mixerPanel');
+        const mixerClose = document.getElementById('mixerClose');
+        const mixerTracksContainer = document.getElementById('mixerTracks');
+
+        function renderMixerTracks() {
+            // Pronunciation track (special - no checkbox, always on)
+            let html = `
+                <div class="mixer-track" data-id="pronunciation">
+                    <span style="width: 16px; text-align: center;">🗣️</span>
+                    <span class="mixer-track-name">单词发音</span>
+                    <input type="range" min="0" max="100" value="${pronunciationVolume * 100}"
+                           onchange="handlePronunciationVolume(this.value)">
+                    <span class="mixer-volume-icon">🔊</span>
+                </div>
+            `;
+            // Background tracks
+            html += audioTracks.map(track => `
+                <div class="mixer-track" data-id="${track.id}">
+                    <input type="checkbox" ${track.enabled ? 'checked' : ''} 
+                           onchange="handleTrackToggle('${track.id}', this.checked)">
+                    <span class="mixer-track-name">${track.name}</span>
+                    <input type="range" min="0" max="100" value="${track.volume * 100}"
+                           onchange="handleVolumeChange('${track.id}', this.value)">
+                    <span class="mixer-volume-icon">${track.enabled ? '🔊' : '🔇'}</span>
+                </div>
+            `).join('');
+            mixerTracksContainer.innerHTML = html;
+        }
+
+        function handlePronunciationVolume(value) {
+            pronunciationVolume = value / 100;
+        }
+
+        function handleTrackToggle(id, enabled) {
+            mixer.setTrackEnabled(id, enabled);
+            // Update icon
+            const track = mixerTracksContainer.querySelector(`[data-id="${id}"]`);
+            if (track) {
+                track.querySelector('.mixer-volume-icon').textContent = enabled ? '🔊' : '🔇';
+            }
+        }
+
+        function handleVolumeChange(id, value) {
+            mixer.setTrackVolume(id, value / 100);
+        }
+
+        function toggleMixer() {
+            const isOpen = mixerPanel.classList.toggle('open');
+            mixerToggle.classList.toggle('active', isOpen);
+        }
+
+        mixerToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMixer();
+        });
+
+        mixerClose.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mixerPanel.classList.remove('open');
+            mixerToggle.classList.remove('active');
+        });
+
+        // Close mixer when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.mixer-panel') && !e.target.closest('.mixer-toggle')) {
+                mixerPanel.classList.remove('open');
+                mixerToggle.classList.remove('active');
+            }
+        });
+
+        // Render tracks on load
+        renderMixerTracks();
+
+        // ==================== VOCABULARY DATA ====================
+        const vocabulary = [
+            { word: "Tuli", translation: "火", pronunciation: "tu-li", example: "Tuli polttaa puuta." },
+            { word: "Kissa", translation: "猫", pronunciation: "kis-sa", example: "Musta kissa juoksi tien yli." },
+            { word: "Yö", translation: "夜晚", pronunciation: "yö", example: "Yö oli pimeä ja myrskyinen." },
+            { word: "Kiitos", translation: "谢谢", pronunciation: "kii-tos", example: "Kiitos avustasi." },
+            { word: "Suomi", translation: "芬兰", pronunciation: "suo-mi", example: "Asun Suomessa." },
+            { word: "Rakastaa", translation: "爱", pronunciation: "ra-kas-taa", example: "Minä rakastan sinua." },
+            { word: "Talo", translation: "房子", pronunciation: "ta-lo", example: "Talo on punainen." },
+            { word: "Aurinko", translation: "太阳", pronunciation: "au-rin-ko", example: "Aurinko paistaa." },
+            { word: "Vesi", translation: "水", pronunciation: "ve-si", example: "Vesi on kirkasta." },
+            { word: "Metsä", translation: "森林", pronunciation: "met-sä", example: "Metsässä on paljon puita." },
+            { word: "Lumi", translation: "雪", pronunciation: "lu-mi", example: "Lumi on valkoista." },
+            { word: "Järvi", translation: "湖", pronunciation: "jär-vi", example: "Suomi on tuhansien järvien maa." },
+            { word: "Kala", translation: "鱼", pronunciation: "ka-la", example: "Kala ui vedessä." },
+            { word: "Lintu", translation: "鸟", pronunciation: "lin-tu", example: "Lintu lentää taivaalla." },
+            { word: "Puu", translation: "树", pronunciation: "puu", example: "Tämä on vanha puu." },
+            { word: "Kukka", translation: "花", pronunciation: "kuk-ka", example: "Kukka on kaunis." },
+            { word: "Ystävä", translation: "朋友", pronunciation: "ys-tä-vä", example: "Hän on paras ystäväni." },
+            { word: "Onni", translation: "幸福", pronunciation: "on-ni", example: "Toivon sinulle onnea." },
+            { word: "Ruoka", translation: "食物", pronunciation: "ruo-ka", example: "Ruoka on valmista." },
+            { word: "Juoma", translation: "饮料", pronunciation: "juo-ma", example: "Tämä on kylmä juoma." },
+            { word: "Kirja", translation: "书", pronunciation: "kir-ja", example: "Luen hyvää kirjaa." },
+            { word: "Koulu", translation: "学校", pronunciation: "kou-lu", example: "Lapset menevät kouluun." },
+            { word: "Työ", translation: "工作", pronunciation: "työ", example: "Teen paljon työtä." },
+            { word: "Aamu", translation: "早晨", pronunciation: "aa-mu", example: "Hyvää huomenta!" },
+            { word: "Ilta", translation: "晚上", pronunciation: "il-ta", example: "Hyvää iltaa!" },
+            { word: "Kesä", translation: "夏天", pronunciation: "ke-sä", example: "Kesällä on lämmintä." },
+            { word: "Talvi", translation: "冬天", pronunciation: "tal-vi", example: "Talvella on kylmää." },
+            { word: "Perhe", translation: "家庭", pronunciation: "per-he", example: "Perhe on tärkein." },
+            { word: "Koira", translation: "狗", pronunciation: "koi-ra", example: "Koira haukkuu pihalla." },
+            { word: "Auto", translation: "汽车", pronunciation: "au-to", example: "Ajan autolla töihin." }
+        ];
+
+        let currentIndex = 0;
+        const cardContent = document.getElementById('cardContent');
+
+        function renderCard(index) {
+            const data = vocabulary[index];
+            cardContent.classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('word').textContent = data.word;
+                document.getElementById('pronunciation').textContent = data.pronunciation;
+                document.getElementById('translation').textContent = data.translation;
+                document.getElementById('sentence').textContent = data.example;
+                cardContent.classList.remove('fade-out');
+            }, 250);
+        }
+        renderCard(currentIndex);
+
+        // ==================== SWIPE HANDLING ====================
+        let touchStartY = 0;
+        let touchEndY = 0;
+        const SWIPE_THRESHOLD = 40;
+        const touchArea = document.getElementById('touchArea');
+
+        touchArea.addEventListener('touchstart', (e) => {
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        touchArea.addEventListener('touchend', (e) => {
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+
+        function handleSwipe() {
+            const deltaY = touchEndY - touchStartY;
+            const hint = document.querySelector('.swipe-hint');
+            if (hint && hint.style.opacity !== '0') {
+                hint.style.opacity = '0';
+                hint.style.transition = 'opacity 0.5s';
+                setTimeout(() => hint.remove(), 600);
+            }
+            if (Math.abs(deltaY) > SWIPE_THRESHOLD) {
+                if (deltaY < 0) nextWord();
+                else prevWord();
+            }
+        }
+
+        function nextWord() {
+            currentIndex = (currentIndex + 1) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        function prevWord() {
+            currentIndex = (currentIndex - 1 + vocabulary.length) % vocabulary.length;
+            renderCard(currentIndex);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowRight') nextWord();
+            if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') prevWord();
+        });
+
+        function playAudio(e) {
+            e.stopPropagation();
+            const word = vocabulary[currentIndex].word;
+            const icon = document.querySelector('.speaker-icon');
+            icon.style.transform = 'scale(1.2)';
+            setTimeout(() => icon.style.transform = 'scale(1)', 200);
+            const audioPath = `./mp3/${word.toLowerCase()}.mp3`;
+            const audio = new Audio(audioPath);
+            audio.volume = pronunciationVolume;
+            audio.play().catch(err => console.error("Pronunciation playback failed:", err));
+        }
+
+        // ==================== JSMPEG VIDEO PLAYER ====================
+        const overlay = document.getElementById('play-overlay');
+        const canvas = document.getElementById('video-canvas');
+        let player = null;
+
+        function showOverlay() {
+            overlay.classList.remove('hidden');
+        }
+
+        function hideOverlay() {
+            overlay.classList.add('hidden');
+        }
+
+        function startPlayer() {
+            if (player) {
+                player.play();
+            } else {
+                player = new JSMpeg.Player('./out.ts', {
+                    canvas: canvas,
+                    loop: true,
+                    autoplay: true,
+                    audio: false,
+                    videoBufferSize: 1024 * 1024 * 2
+                });
+            }
+        }
+
+        function stopPlayer() {
+            if (player) {
+                player.pause();
+            }
+            mixer.stopAll();
+        }
+
+        async function startAudioWithPermission() {
+            if (!mixer.isInitialized) {
+                await mixer.init();
+            }
+            mixer.resume();
+            mixer.playAll();
+            hideOverlay();
+        }
+
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopPlayer();
+            } else {
+                startPlayer();
+                if (!mixer.isPlaying()) {
+                    showOverlay();
+                }
+            }
+        });
+
+        // On page load
+        window.addEventListener('load', () => {
+            startPlayer();
+        });
+
+        // Handle user interaction - needed for audio
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.pronunciation-row')) return;
+            if (e.target.closest('.mixer-panel') || e.target.closest('.mixer-toggle')) return;
+            startAudioWithPermission();
+        });
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW registered:', reg.scope))
+                    .catch(err => console.log('SW registration failed:', err));
+            });
+        }
+    </script>
+</body>
+
+</html>
