@@ -49,11 +49,15 @@
         }
 
         .overlay {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
+            right: 0;
+            bottom: 0;
             width: 100%;
             height: 100%;
+            height: 100dvh;
+            /* Dynamic viewport height for iOS */
             z-index: 10;
             display: flex;
             flex-direction: column;
@@ -62,6 +66,8 @@
             background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4));
             color: white;
             padding: 20px;
+            padding-top: env(safe-area-inset-top, 20px);
+            padding-bottom: env(safe-area-inset-bottom, 20px);
             text-align: center;
             user-select: none;
         }
@@ -154,11 +160,14 @@
         }
 
         #play-overlay {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
+            right: 0;
+            bottom: 0;
             width: 100%;
             height: 100%;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -374,6 +383,9 @@
         </div>
     </div>
 
+    <!-- Howler.js for iOS-compatible audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+
     <!-- JSMpeg Library -->
     <script src="./jsmpeg.min.js"></script>
 
@@ -382,88 +394,52 @@
         // Easy to add/remove tracks! Just modify this array.
         const audioTracks = [
             { id: 'ambient', name: '环境音', src: './1.mp3', volume: 0.5, enabled: true },
-            // Add more tracks here:
             { id: 'music', name: '背景乐', src: './cat-purring.mp3', volume: 0.3, enabled: true },
             // { id: 'rain', name: '雨声', src: './rain.mp3', volume: 0.4, enabled: false },
         ];
 
-        // ==================== AUDIO MIXER CLASS ====================
+        // ==================== AUDIO MIXER CLASS (Howler.js for iOS compatibility) ====================
         class AudioMixer {
             constructor(tracks) {
                 this.tracks = tracks;
-                this.audioCtx = null;
-                this.masterGain = null;
-                this.trackData = {}; // { id: { buffer, gainNode, sourceNode, enabled, volume } }
-                this.isInitialized = false;
+                this.trackData = {}; // { id: { howl, enabled, volume } }
+                this.isActivated = false;
             }
 
-            async init() {
-                if (this.isInitialized) return;
-
-                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                this.masterGain = this.audioCtx.createGain();
-                this.masterGain.connect(this.audioCtx.destination);
-
-                // Load all tracks
-                const loadPromises = this.tracks.map(track => this.loadTrack(track));
-                await Promise.all(loadPromises);
-
-                this.isInitialized = true;
-                console.log('AudioMixer initialized with', this.tracks.length, 'tracks');
-            }
-
-            async loadTrack(track) {
-                try {
-                    const response = await fetch(track.src);
-                    const arrayBuffer = await response.arrayBuffer();
-                    const buffer = await this.audioCtx.decodeAudioData(arrayBuffer);
-
-                    const gainNode = this.audioCtx.createGain();
-                    gainNode.gain.value = track.enabled ? track.volume : 0;
-                    gainNode.connect(this.masterGain);
+            // Initialize Howler sounds (call after page load)
+            init() {
+                for (const track of this.tracks) {
+                    const howl = new Howl({
+                        src: [track.src],
+                        loop: true,
+                        volume: track.enabled ? track.volume : 0,
+                        preload: true,
+                        html5: false, // Use Web Audio for seamless loops
+                    });
 
                     this.trackData[track.id] = {
-                        buffer,
-                        gainNode,
-                        sourceNode: null,
+                        howl,
                         enabled: track.enabled,
                         volume: track.volume
                     };
-
-                    console.log(`Track "${track.name}" loaded`);
-                } catch (e) {
-                    console.error(`Failed to load track "${track.name}":`, e);
                 }
+                console.log('AudioMixer initialized with Howler.js');
             }
 
-            resume() {
-                if (this.audioCtx && this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
-                }
-            }
-
+            // Start all enabled tracks (call on user gesture)
             playAll() {
-                this.resume();
+                this.isActivated = true;
                 for (const id in this.trackData) {
                     const data = this.trackData[id];
-                    if (data.sourceNode) continue; // Already playing
-
-                    const source = this.audioCtx.createBufferSource();
-                    source.buffer = data.buffer;
-                    source.loop = true;
-                    source.connect(data.gainNode);
-                    source.start(0);
-                    data.sourceNode = source;
+                    if (data.enabled && !data.howl.playing()) {
+                        data.howl.play();
+                    }
                 }
             }
 
             stopAll() {
                 for (const id in this.trackData) {
-                    const data = this.trackData[id];
-                    if (data.sourceNode) {
-                        try { data.sourceNode.stop(); } catch (e) { }
-                        data.sourceNode = null;
-                    }
+                    this.trackData[id].howl.stop();
                 }
             }
 
@@ -472,11 +448,15 @@
                 if (!data) return;
 
                 data.enabled = enabled;
-                data.gainNode.gain.setTargetAtTime(
-                    enabled ? data.volume : 0,
-                    this.audioCtx.currentTime,
-                    0.1
-                );
+
+                if (enabled) {
+                    data.howl.volume(data.volume);
+                    if (this.isActivated && !data.howl.playing()) {
+                        data.howl.play();
+                    }
+                } else {
+                    data.howl.pause();
+                }
             }
 
             setTrackVolume(id, volume) {
@@ -485,13 +465,13 @@
 
                 data.volume = volume;
                 if (data.enabled) {
-                    data.gainNode.gain.setTargetAtTime(volume, this.audioCtx.currentTime, 0.1);
+                    data.howl.volume(volume);
                 }
             }
 
             isPlaying() {
                 for (const id in this.trackData) {
-                    if (this.trackData[id].sourceNode) return true;
+                    if (this.trackData[id].howl.playing()) return true;
                 }
                 return false;
             }
@@ -516,7 +496,7 @@
                     <span style="width: 16px; text-align: center;">🗣️</span>
                     <span class="mixer-track-name">单词发音</span>
                     <input type="range" min="0" max="100" value="${pronunciationVolume * 100}"
-                           onchange="handlePronunciationVolume(this.value)">
+                           oninput="handlePronunciationVolume(this.value)">
                     <span class="mixer-volume-icon">🔊</span>
                 </div>
             `;
@@ -527,7 +507,7 @@
                            onchange="handleTrackToggle('${track.id}', this.checked)">
                     <span class="mixer-track-name">${track.name}</span>
                     <input type="range" min="0" max="100" value="${track.volume * 100}"
-                           onchange="handleVolumeChange('${track.id}', this.value)">
+                           oninput="handleVolumeChange('${track.id}', this.value)">
                     <span class="mixer-volume-icon">${track.enabled ? '🔊' : '🔇'}</span>
                 </div>
             `).join('');
@@ -548,7 +528,14 @@
         }
 
         function handleVolumeChange(id, value) {
-            mixer.setTrackVolume(id, value / 100);
+            const vol = value / 100;
+            console.log(`Volume change: ${id} -> ${vol}`);
+            mixer.setTrackVolume(id, vol);
+            // Debug: check if volume was actually set
+            const data = mixer.trackData[id];
+            if (data) {
+                console.log(`Audio element volume is now: ${data.audio.volume}`);
+            }
         }
 
         function toggleMixer() {
@@ -718,12 +705,9 @@
             mixer.stopAll();
         }
 
-        async function startAudioWithPermission() {
-            if (!mixer.isInitialized) {
-                await mixer.init();
-            }
-            mixer.resume();
-            mixer.playAll();
+        // Called on user gesture - starts audio
+        function startAudioWithPermission() {
+            mixer.playAll();  // Howler.js handles iOS unlock automatically
             hideOverlay();
         }
 
@@ -739,17 +723,22 @@
             }
         });
 
-        // On page load
+        // On page load: start video and init audio
         window.addEventListener('load', () => {
             startPlayer();
+            mixer.init();  // Howler.js preloads automatically
+            console.log('AudioMixer ready, awaiting user gesture');
         });
 
         // Handle user interaction - needed for audio
+        // Handle user interaction - needed for audio permissions & iOS unlock
         document.addEventListener('click', (e) => {
             if (e.target.closest('.pronunciation-row')) return;
             if (e.target.closest('.mixer-panel') || e.target.closest('.mixer-toggle')) return;
             startAudioWithPermission();
         });
+
+        // Remove old globalUnlock (no longer needed with new activate() pattern)
     </script>
 
     <!-- Service Worker Registration -->
